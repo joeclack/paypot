@@ -94,7 +94,7 @@ class DashboardViewModel {
             (balance, pots) = try await (balanceFetch, potsFetch)
 
             // Fetch recent transactions (last 3 days)
-            let sinceDate = Calendar.current.date(byAdding: .day, value: -3, to: Date()) ?? Date().addingTimeInterval(-3*24*60*60)
+            let sinceDate = Calendar.current.date(byAdding: .day, value: -6, to: Date()) ?? Date().addingTimeInterval(-3*24*60*60)
             let fetchedTransactions = try await service.getTransactions(accountId: account.id, since: sinceDate)
             transactions = fetchedTransactions
 

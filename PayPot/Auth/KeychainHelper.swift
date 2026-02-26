@@ -8,6 +8,7 @@ enum KeychainHelper {
             kSecClass: kSecClassGenericPassword,
             kSecAttrAccount: key,
             kSecValueData: data,
+            kSecAttrAccessible: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
         ]
         SecItemDelete(query as CFDictionary)
         SecItemAdd(query as CFDictionary, nil)

@@ -46,7 +46,9 @@ class AuthManager {
             // Token still has more than 5 minutes left — no refresh needed
             return
         }
+        #if DEBUG
         print("[Auth] refreshIfNeeded — token expiring soon or expiry unknown, refreshing…")
+        #endif
         try? await refreshAccessToken()
     }
 
@@ -59,7 +61,9 @@ class AuthManager {
         let state = UUID().uuidString
         pendingState = state
         signInError = nil
+        #if DEBUG
         print("[Auth] signIn() — state=\(state)")
+        #endif
 
         var components = URLComponents(string: "https://auth.monzo.com")!
         components.queryItems = [
@@ -79,29 +83,43 @@ class AuthManager {
     /// Called from RootView's onOpenURL. Stores the auth code and begins polling
     /// the token endpoint until the exchange succeeds.
     func handleIncomingURL(_ url: URL) {
+        #if DEBUG
         print("[Auth] handleIncomingURL — \(url.absoluteString)")
+        #endif
         guard url.scheme == "paypot" else {
+            #if DEBUG
             print("[Auth] ❌ wrong scheme: \(url.scheme ?? "nil")")
+            #endif
             return
         }
         guard let comps = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            #if DEBUG
             print("[Auth] ❌ failed to parse URL components")
+            #endif
             return
         }
         guard let code = comps.queryItems?.first(where: { $0.name == "code" })?.value else {
+            #if DEBUG
             print("[Auth] ❌ no 'code' param — items: \(comps.queryItems ?? [])")
+            #endif
             return
         }
         guard let expectedState = pendingState else {
+            #if DEBUG
             print("[Auth] ❌ no pendingState — was signIn() called?")
+            #endif
             return
         }
         let receivedState = comps.queryItems?.first(where: { $0.name == "state" })?.value
         guard receivedState == expectedState else {
+            #if DEBUG
             print("[Auth] ❌ state mismatch — expected=\(expectedState) got=\(receivedState ?? "nil")")
+            #endif
             return
         }
+        #if DEBUG
         print("[Auth] ✅ code received, starting polling")
+        #endif
         pendingCode = code
         startPolling(code: code)
     }
@@ -109,21 +127,29 @@ class AuthManager {
     /// Called when the app returns to foreground while waiting for the code exchange.
     func retryPendingExchange() {
         guard let code = pendingCode else {
+            #if DEBUG
             print("[Auth] retryPendingExchange — no pendingCode, nothing to do")
+            #endif
             return
         }
         guard Date.now.timeIntervalSince(lastPollingStart) > 5 else {
+            #if DEBUG
             print("[Auth] retryPendingExchange — polling started recently, skipping")
+            #endif
             return
         }
+        #if DEBUG
         print("[Auth] retryPendingExchange — restarting polling")
+        #endif
         startPolling(code: code)
     }
 
     /// Called when the app returns to foreground while waiting for SCA approval.
     func retryScaApprovalCheck() {
         guard isAwaitingScaApproval else { return }
+        #if DEBUG
         print("[Auth] retryScaApprovalCheck — restarting SCA poll")
+        #endif
         startScaPolling()
     }
 
@@ -167,12 +193,16 @@ class AuthManager {
     private func startPolling(code: String) {
         pollingTask?.cancel()
         lastPollingStart = .now
+        #if DEBUG
         print("[Auth] startPolling — code=\(code.prefix(8))…")
+        #endif
         pollingTask = Task {
             var attempt = 0
             while !Task.isCancelled && pendingState != nil {
                 attempt += 1
+                #if DEBUG
                 print("[Auth] polling attempt \(attempt)…")
+                #endif
                 do {
                     try await postTokenRequest([
                         ("grant_type", "authorization_code"),
@@ -181,7 +211,9 @@ class AuthManager {
                         ("redirect_uri", Config.monzoRedirectURI),
                         ("code", code),
                     ])
+                    #if DEBUG
                     print("[Auth] ✅ token exchange succeeded on attempt \(attempt)")
+                    #endif
                     pendingState = nil
                     pendingCode = nil
                     isAwaitingScaApproval = true
@@ -190,17 +222,23 @@ class AuthManager {
                 } catch {
                     if case .httpError(let status, let body) = error as? MonzoError,
                        status == 401, body.contains("bad_authorization_code") {
+                        #if DEBUG
                         print("[Auth] ❌ code already consumed — stopping poll")
+                        #endif
                         signInError = "Sign-in timed out. Please try again."
                         pendingState = nil
                         pendingCode = nil
                         return
                     }
+                    #if DEBUG
                     print("[Auth] attempt \(attempt) failed: \(error)")
+                    #endif
                     try? await Task.sleep(for: .seconds(0.6))
                 }
             }
+            #if DEBUG
             print("[Auth] polling loop exited — cancelled=\(Task.isCancelled)")
+            #endif
         }
     }
 
@@ -208,30 +246,42 @@ class AuthManager {
     /// and isAwaitingScaApproval is cleared, making isAuthenticated true.
     private func startScaPolling() {
         scaPollingTask?.cancel()
+        #if DEBUG
         print("[Auth] startScaPolling — waiting for Monzo SCA approval")
+        #endif
         scaPollingTask = Task {
             var attempt = 0
             while !Task.isCancelled && isAwaitingScaApproval {
                 attempt += 1
+                #if DEBUG
                 print("[Auth] SCA check \(attempt)…")
+                #endif
                 do {
                     var request = URLRequest(url: URL(string: "https://api.monzo.com/accounts")!)
                     request.setValue("Bearer \(accessToken ?? "")", forHTTPHeaderField: "Authorization")
                     let (_, response) = try await URLSession.shared.data(for: request)
                     if let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) {
+                        #if DEBUG
                         print("[Auth] ✅ SCA approved — navigating to dashboard")
+                        #endif
                         isAwaitingScaApproval = false
                         connectedAt = Date()
                         UserDefaults.standard.set(connectedAt!.timeIntervalSince1970, forKey: connectedAtKey)
                         return
                     }
+                    #if DEBUG
                     print("[Auth] SCA not yet approved — retrying in 2s")
+                    #endif
                 } catch {
+                    #if DEBUG
                     print("[Auth] SCA check error: \(error)")
+                    #endif
                 }
                 try? await Task.sleep(for: .seconds(0.6))
             }
+            #if DEBUG
             print("[Auth] SCA polling exited — cancelled=\(Task.isCancelled)")
+            #endif
         }
     }
 
@@ -258,7 +308,9 @@ class AuthManager {
 
         let tokenResponse = try JSONDecoder().decode(TokenResponse.self, from: data)
         storeTokens(access: tokenResponse.accessToken, refresh: tokenResponse.refreshToken, expiresIn: tokenResponse.expiresIn)
+        #if DEBUG
         print("[Auth] postTokenRequest — access=\(tokenResponse.accessToken.prefix(8))… refresh=\(tokenResponse.refreshToken != nil ? "yes" : "none") expiresIn=\(tokenResponse.expiresIn.map(String.init) ?? "unknown")")
+        #endif
     }
 
     private func storeTokens(access: String, refresh: String?, expiresIn: Int? = nil) {

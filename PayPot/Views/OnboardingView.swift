@@ -48,21 +48,23 @@ struct OnboardingView: View {
     private var isLastPage: Bool { currentPage == pages.count - 1 }
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            TabView(selection: $currentPage) {
-                ForEach(Array(pages.enumerated()), id: \.offset) { index, page in
-                    pageView(page)
-                        .tag(index)
+        NavigationStack {
+            ZStack(alignment: .topTrailing) {
+                TabView(selection: $currentPage) {
+                    ForEach(Array(pages.enumerated()), id: \.offset) { index, page in
+                        pageView(page)
+                            .tag(index)
+                    }
                 }
-            }
-            .tabViewStyle(.page(indexDisplayMode: .always))
-            .indexViewStyle(.page(backgroundDisplayMode: .always))
-
-            if !isLastPage {
-                Button("Skip") {
-                    onDismiss()
+                .tabViewStyle(.page(indexDisplayMode: .always))
+                .indexViewStyle(.page(backgroundDisplayMode: .always))
+                .toolbar {
+                    if !isLastPage {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button("Skip") { onDismiss() }
+                        }
+                    }
                 }
-                .padding()
             }
         }
     }

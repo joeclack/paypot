@@ -11,9 +11,59 @@ struct ContentView: View {
     let authManager: AuthManager
     @Bindable var viewModel: DashboardViewModel
     var onGoToSettings: (() -> Void)? = nil
+    @State var searchText = ""
+    @State private var selectedTransaction: Transaction?
+    @State private var hideTransfers = false
+    @State private var selectedCategory: String? = nil
+    @State private var showCategoryPicker = false
 
+    private var uniqueCategories: [String] {
+        let categories = Set(viewModel.transactions.map { $0.category.lowercased() })
+        return categories.sorted()
+    }
+    
     private var filteredTransactions: [Transaction] {
-        viewModel.transactions.sorted(by: { $0.created > $1.created })
+        // Sort newest first
+        let sorted = viewModel.transactions.sorted { $0.created > $1.created }
+
+        // Apply category filters first
+        let categoryFiltered = sorted.filter { txn in
+            let category = txn.category.lowercased()
+
+            // Hide transfers toggle
+            if hideTransfers && category == "transfers" {
+                return false
+            }
+
+            // Specific category filter
+            if let selected = selectedCategory {
+                return category == selected.lowercased()
+            }
+
+            return true
+        }
+
+        // Apply search filtering
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return categoryFiltered }
+
+        let lcQuery = query.lowercased()
+
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+
+        return categoryFiltered.filter { txn in
+            if txn.description.lowercased().contains(lcQuery) { return true }
+
+            let absPoundsString = String(format: "%.2f", Double(abs(txn.amount)) / 100.0)
+            if absPoundsString.contains(lcQuery) { return true }
+
+            let dateString = formatter.string(from: txn.created).lowercased()
+            if dateString.contains(lcQuery) { return true }
+
+            return false
+        }
     }
 
     var body: some View {
@@ -29,7 +79,7 @@ struct ContentView: View {
                                     if let message = viewModel.errorMessage {
                                         errorBanner(message: message)
                                     }
-                                    balanceCard
+//                                    balanceCard
                                     transactionsSection
                                 }
                                 .padding()
@@ -53,6 +103,33 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("Transactions")
+            .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search transactions")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Menu {
+                        // Hide Transfers Toggle
+                        Toggle("Hide Transfers", isOn: $hideTransfers)
+
+                        Divider()
+
+                        // Category Picker
+                        Picker("Category", selection: $selectedCategory) {
+                            Text("All Categories").tag(String?.none)
+
+                            ForEach(uniqueCategories, id: \.self) { category in
+                                Text(category.capitalized)
+                                    .tag(Optional(category))
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "line.3.horizontal.decrease.circle")
+                    }
+                }
+            }   
+            .sheet(item: $selectedTransaction) { tx in
+                TransactionDetailView(transaction: tx)
+                    .presentationDetents([.medium, .large])
+            }
         }
     }
 
@@ -161,13 +238,29 @@ struct ContentView: View {
                 .padding(.horizontal, 4)
 
             if filteredTransactions.isEmpty && !viewModel.isLoading {
-                Text("No recent transactions found.")
-                    .foregroundStyle(.secondary)
+                if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text("No recent transactions found.")
+                        .foregroundStyle(.secondary)
+                        .padding()
+                } else {
+                    VStack(spacing: 8) {
+                        Text("No results for \"\(searchText)\"")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Button("Clear Search") { searchText = "" }
+                            .buttonStyle(.bordered)
+                    }
                     .padding()
+                }
             } else {
                 LazyVStack(spacing: 10) {
                     ForEach(filteredTransactions) { transaction in
-                        TransactionRow(transaction: transaction)
+                        Button {
+                            selectedTransaction = transaction
+                        } label: {
+                            TransactionRow(transaction: transaction)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }

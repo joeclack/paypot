@@ -92,22 +92,23 @@ struct RootView: View {
     var body: some View {
         ZStack {
             TabView(selection: $activeTab) {
-//                Tab("Transactions", systemImage: "list.bullet.rectangle", value: .monzo) {
-//                    ContentView(authManager: authManager, viewModel: dashboardViewModel) {
-//                        activeTab = .settings
-//                    }
-//                }
-                Tab("Savings", systemImage: "chart.line.uptrend.xyaxis.circle", value: .savings) {
-                    SavingsView(store: savingsStore)
-                }
                 Tab("Budget", systemImage: "chart.pie.fill", value: .budget) {
                     BudgetView(viewModel: dashboardViewModel, prefsStore: prefsStore)
+                }
+                Tab("Transactions", systemImage: "list.bullet.rectangle", value: .monzo) {
+                    ContentView(authManager: authManager, viewModel: dashboardViewModel) {
+                        activeTab = .settings
+                    }
+                }
+                Tab("Savings", systemImage: "chart.line.uptrend.xyaxis.circle", value: .savings) {
+                    SavingsView(store: savingsStore)
                 }
                 Tab("Settings", systemImage: "gearshape.fill", value: .settings) {
                     SettingsView(authManager: authManager, prefsStore: prefsStore, viewModel: dashboardViewModel)
                 }
             }
             .preferredColorScheme(appColorScheme.colorScheme)
+            
 
             if !splashDone {
                 AppSplashView()

@@ -16,6 +16,7 @@ struct SettingsView: View {
     #if DEBUG
     @State private var showLoginPreview = false
     @AppStorage("app.hasSeenOnboarding") private var hasSeenOnboarding = false
+    @AppStorage("app.paydayConfettiDate") private var paydayConfettiDate = ""
     #endif
 
     private var biometricType: LABiometryType {
@@ -83,58 +84,6 @@ struct SettingsView: View {
                                     .font(.subheadline)
                             }
                         }
-                        if let expiresAt = authManager.tokenExpiresAt {
-                            HStack(alignment: .top) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Access token expires")
-                                        .foregroundStyle(.secondary)
-                                    Text("Auto-refreshed on launch")
-                                        .font(.caption2)
-                                        .foregroundStyle(.tertiary)
-                                }
-                                Spacer()
-                                if expiresAt < Date() {
-                                    Text("Expired")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.orange)
-                                } else {
-                                    Text(expiresAt, style: .relative)
-                                        .font(.subheadline)
-                                        .foregroundStyle(expiresAt.timeIntervalSinceNow < 3600 ? .orange : .secondary)
-                                }
-                            }
-                        }
-                        HStack {
-                            switch viewModel.connectionStatus {
-                            case .unchecked:
-                                Image(systemName: "circle.fill")
-                                    .foregroundStyle(.secondary)
-                                    .font(.caption)
-                                Text("Token status unknown")
-                                    .foregroundStyle(.secondary)
-                            case .checking:
-                                ProgressView()
-                                    .scaleEffect(0.8)
-                                Text("Checking token…")
-                                    .foregroundStyle(.secondary)
-                            case .active:
-                                Image(systemName: "circle.fill")
-                                    .foregroundStyle(.green)
-                                    .font(.caption)
-                                Text("Token active")
-                            case .expired:
-                                Image(systemName: "circle.fill")
-                                    .foregroundStyle(.orange)
-                                    .font(.caption)
-                                Text("Token expired")
-                                    .foregroundStyle(.orange)
-                            }
-                            Spacer()
-                            Button("Check") {
-                                Task { await viewModel.checkConnection() }
-                            }
-                            .font(.subheadline)
-                        }
                         Button(role: .destructive) {
                             showDisconnectConfirmation = true
                         } label: {
@@ -174,6 +123,61 @@ struct SettingsView: View {
                     }
                     Button("Reset Onboarding") {
                         hasSeenOnboarding = false
+                    }
+                    Button("Reset Payday Confetti") {
+                        paydayConfettiDate = ""
+                    }
+                    if let expiresAt = authManager.tokenExpiresAt {
+                        HStack(alignment: .top) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Access token expires")
+                                    .foregroundStyle(.secondary)
+                                Text("Auto-refreshed on launch")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            Spacer()
+                            if expiresAt < Date() {
+                                Text("Expired")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.orange)
+                            } else {
+                                Text(expiresAt, style: .relative)
+                                    .font(.subheadline)
+                                    .foregroundStyle(expiresAt.timeIntervalSinceNow < 3600 ? .orange : .secondary)
+                            }
+                        }
+                    }
+                    HStack {
+                        switch viewModel.connectionStatus {
+                        case .unchecked:
+                            Image(systemName: "circle.fill")
+                                .foregroundStyle(.secondary)
+                                .font(.caption)
+                            Text("Token status unknown")
+                                .foregroundStyle(.secondary)
+                        case .checking:
+                            ProgressView()
+                                .scaleEffect(0.8)
+                            Text("Checking token…")
+                                .foregroundStyle(.secondary)
+                        case .active:
+                            Image(systemName: "circle.fill")
+                                .foregroundStyle(.green)
+                                .font(.caption)
+                            Text("Token active")
+                        case .expired:
+                            Image(systemName: "circle.fill")
+                                .foregroundStyle(.orange)
+                                .font(.caption)
+                            Text("Token expired")
+                                .foregroundStyle(.orange)
+                        }
+                        Spacer()
+                        Button("Check") {
+                            Task { await viewModel.checkConnection() }
+                        }
+                        .font(.subheadline)
                     }
                 }
                 #endif

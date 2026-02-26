@@ -51,6 +51,7 @@ struct SavingsView: View {
                     } label: {
                         Image(systemName: "plus")
                     }
+                    .sensoryFeedback(.impact(weight: .light), trigger: showAddSheet)
                 }
             }
             .sheet(isPresented: $showAddSheet) {
