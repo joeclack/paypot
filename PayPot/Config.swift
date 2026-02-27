@@ -15,6 +15,6 @@ enum Config {
         return value
     }()
 
-    static let monzoRedirectURI = "https://joeclack.github.io/auth-paypot"
+    static let monzoRedirectURI = "https://paypot.app"
     static let monzoBaseURL = URL(string: "https://api.monzo.com")!
 }
