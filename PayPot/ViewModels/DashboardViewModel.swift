@@ -12,7 +12,6 @@ enum ConnectionStatus {
 class DashboardViewModel {
     var balance: Balance?
     var pots: [Pot] = []
-    var transactions: [Transaction] = []
     var isLoading = false
     var errorMessage: String?
     var isSessionExpired = false
@@ -40,7 +39,6 @@ class DashboardViewModel {
     func reset() {
         balance = nil
         pots = []
-        transactions = []
         lastUpdated = nil
         errorMessage = nil
         isSessionExpired = false
@@ -92,11 +90,6 @@ class DashboardViewModel {
             async let balanceFetch = service.getBalance(accountId: account.id)
             async let potsFetch = service.getPots(accountId: account.id)
             (balance, pots) = try await (balanceFetch, potsFetch)
-
-            // Fetch recent transactions (last 3 days)
-            let sinceDate = Calendar.current.date(byAdding: .day, value: -6, to: Date()) ?? Date().addingTimeInterval(-3*24*60*60)
-            let fetchedTransactions = try await service.getTransactions(accountId: account.id, since: sinceDate)
-            transactions = fetchedTransactions
 
             lastUpdated = Date()
             connectionStatus = .active

@@ -41,9 +41,30 @@ struct SettingsView: View {
         }
     }
 
+    private var paydayScheduleLabel: String {
+        switch prefsStore.paydaySchedule {
+        case .fixedDay(let day): return "\(day)\(ordinal(day)) of month"
+        case .lastWorkingDay:    return "Last working day"
+        case nil:                return "Not set"
+        }
+    }
+
+    private func ordinal(_ n: Int) -> String {
+        switch n {
+        case 11, 12, 13: return "th"
+        default:
+            switch n % 10 {
+            case 1: return "st"
+            case 2: return "nd"
+            case 3: return "rd"
+            default: return "th"
+            }
+        }
+    }
+
     var body: some View {
         NavigationStack {
-            List {
+        List {
                 Section {
                     Toggle(isOn: $biometricLockEnabled) {
                         Label(biometricLabel, systemImage: biometricIcon)
@@ -60,6 +81,15 @@ struct SettingsView: View {
                 } footer: {
                     if biometricLockEnabled {
                         Text("\(biometricLabel) is used to unlock the app and to authenticate pot withdrawals.")
+                    }
+                }
+
+                Section("Budget") {
+                    NavigationLink(destination: PaydayEditSheet(prefsStore: prefsStore)) {
+                        LabeledContent("Pay Schedule") {
+                            Text(paydayScheduleLabel)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
 

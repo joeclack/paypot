@@ -25,6 +25,7 @@ class AuthManager {
     private var pendingCode: String?
     private var pollingTask: Task<Void, Never>?
     private var scaPollingTask: Task<Void, Never>?
+    private var ongoingRefreshTask: Task<Void, Error>?
     private var lastPollingStart: Date = .distantPast
 
     init() {
@@ -165,13 +166,38 @@ class AuthManager {
     }
 
     func refreshAccessToken() async throws {
-        guard let refreshToken else { throw MonzoError.unauthorized }
-        try await postTokenRequest([
-            ("grant_type", "refresh_token"),
-            ("client_id", Config.monzoClientId),
-            ("client_secret", Config.monzoClientSecret),
-            ("refresh_token", refreshToken),
-        ])
+        // Deduplicate concurrent refresh calls — Monzo tokens are single-use,
+        // so only one refresh must fly at a time; all other callers await it.
+        if let existing = ongoingRefreshTask {
+            return try await existing.value
+        }
+
+        guard let rt = refreshToken else { throw MonzoError.unauthorized }
+
+        let task = Task<Void, Error> {
+            do {
+                try await postTokenRequest([
+                    ("grant_type", "refresh_token"),
+                    ("client_id", Config.monzoClientId),
+                    ("client_secret", Config.monzoClientSecret),
+                    ("refresh_token", rt),
+                ])
+            } catch let error as MonzoError {
+                if case .httpError(let status, let body) = error,
+                   status == 401, body.contains("bad_refresh_token") {
+                    // Session fully expired — wipe tokens and force re-auth.
+                    #if DEBUG
+                    print("[Auth] ❌ bad_refresh_token — signing out")
+                    #endif
+                    signOut()
+                    throw MonzoError.unauthorized
+                }
+                throw error
+            }
+        }
+        ongoingRefreshTask = task
+        defer { ongoingRefreshTask = nil }
+        try await task.value
     }
 
     func signOut() {

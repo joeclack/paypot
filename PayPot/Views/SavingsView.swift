@@ -8,6 +8,10 @@ struct SavingsView: View {
     @State private var showAddSheet = false
     @State private var selectedAccount: SavingsAccount?
 
+    private var hasPenalties: Bool {
+        store.accounts.contains { $0.accountType.cashFraction < 1.0 }
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -26,24 +30,47 @@ struct SavingsView: View {
                         }
                     }
                 }
-                .padding(.bottom, 24)
-                .padding(.top, 12)
             }
-            .navigationTitle("Savings")
             .background(Color(.systemGroupedBackground))
             .toolbar {
                 ToolbarItem(placement: .principal) {
-                    VStack(spacing: 1) {
-                        Text(savingsPoundsString(store.totalBalancePence))
-                            .font(.headline.weight(.bold))
-                            .monospacedDigit()
-                        Text("Total Savings")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                    if hasPenalties {
+                        HStack(spacing: 12) {
+                            VStack(spacing: 1) {
+                                Text(savingsPoundsString(store.totalBalancePence))
+                                    .font(.subheadline.weight(.bold))
+                                    .monospacedDigit()
+                                Text("Saved")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Divider().frame(height: 24)
+                            VStack(spacing: 1) {
+                                Text(savingsPoundsString(store.totalCashPence))
+                                    .font(.subheadline.weight(.bold))
+                                    .monospacedDigit()
+                                    .foregroundStyle(.green)
+                                Text("Cash")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .glassEffect(in: Capsule())
+                    } else {
+                        VStack(spacing: 1) {
+                            Text(savingsPoundsString(store.totalBalancePence))
+                                .font(.headline.weight(.bold))
+                                .monospacedDigit()
+                            Text("Total Savings")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .glassEffect(in: Capsule())
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
-                    .glassEffect(in: Capsule())
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -71,16 +98,34 @@ private struct SavingsAccountCard: View {
 
     var body: some View {
         HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(account.name)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Image(systemName: account.accountType.icon)
+                        .font(.caption2)
+                    Text(account.accountType.label)
+                        .font(.caption2.weight(.medium))
+                    Text("·")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    Text(account.name)
+                        .font(.caption2)
+                }
+                .foregroundStyle(.secondary)
+
                 Text(savingsPoundsString(account.balancePence))
                     .font(.title.weight(.bold))
                     .monospacedDigit()
-                Text(savingsRelativeDate(account.lastUpdated))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+
+                if account.accountType.cashFraction < 1.0 {
+                    let cashPence = Int(Double(account.balancePence) * account.accountType.cashFraction)
+                    Text("Cash: \(savingsPoundsString(cashPence))")
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.orange)
+                } else {
+                    Text(savingsRelativeDate(account.lastUpdated))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer()
             Image(systemName: "chevron.right")
@@ -103,6 +148,7 @@ private struct AddAccountSheet: View {
 
     @State private var name = ""
     @State private var balanceText = ""
+    @State private var accountType: AccountType = .generalSavings
 
     private var initialBalancePence: Int {
         let cleaned = balanceText.filter { $0.isNumber || $0 == "." }
@@ -123,6 +169,19 @@ private struct AddAccountSheet: View {
                             .keyboardType(.decimalPad)
                     }
                 }
+
+                Section("Account Type") {
+                    Picker("Type", selection: $accountType) {
+                        ForEach(AccountType.allCases, id: \.self) { type in
+                            Label(type.label, systemImage: type.icon).tag(type)
+                        }
+                    }
+                    if let note = accountType.cashNote {
+                        Text(note)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                }
             }
             .navigationTitle("Add Account")
             .navigationBarTitleDisplayMode(.inline)
@@ -134,7 +193,8 @@ private struct AddAccountSheet: View {
                     Button("Add") {
                         store.addAccount(
                             name: name.trimmingCharacters(in: .whitespaces),
-                            initialBalancePence: initialBalancePence
+                            initialBalancePence: initialBalancePence,
+                            accountType: accountType
                         )
                         dismiss()
                     }
@@ -167,15 +227,64 @@ struct AccountDetailSheet: View {
             VStack(spacing: 0) {
                 // Balance header
                 VStack(alignment: .center, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Image(systemName: displayAccount.accountType.icon)
+                            .font(.caption)
+                        Text(displayAccount.accountType.label)
+                            .font(.caption.weight(.medium))
+                    }
+                    .foregroundStyle(.secondary)
+
                     Text(displayAccount.name)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Text(savingsPoundsString(displayAccount.balancePence))
                         .font(.largeTitle.weight(.bold))
                         .monospacedDigit()
-                    Text(savingsRelativeDate(displayAccount.lastUpdated))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+
+                    if displayAccount.accountType.cashFraction < 1.0 {
+                        let balance = displayAccount.balancePence
+                        let cashPence = Int(Double(balance) * displayAccount.accountType.cashFraction)
+                        let penaltyPence = balance - cashPence
+
+                        HStack(spacing: 0) {
+                            VStack(spacing: 3) {
+                                Text("You'd receive")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                Text(savingsPoundsString(cashPence))
+                                    .font(.subheadline.weight(.semibold))
+                                    .monospacedDigit()
+                                    .foregroundStyle(.green)
+                            }
+                            .frame(maxWidth: .infinity)
+
+                            Divider().frame(height: 32)
+
+                            VStack(spacing: 3) {
+                                Text("Penalty")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                Text(savingsPoundsString(penaltyPence))
+                                    .font(.subheadline.weight(.semibold))
+                                    .monospacedDigit()
+                                    .foregroundStyle(.red)
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .padding(.horizontal, 24)
+                        .padding(.top, 8)
+
+                        Text(displayAccount.accountType.cashNote ?? "")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.top, 2)
+                    } else {
+                        Text(savingsRelativeDate(displayAccount.lastUpdated))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 24)
@@ -298,6 +407,7 @@ private struct EditAccountSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var name: String
+    @State private var accountType: AccountType
     @State private var amounts: [Int]
     @State private var newAmountText = ""
 
@@ -305,6 +415,7 @@ private struct EditAccountSheet: View {
         self.store = store
         self.account = account
         _name = State(initialValue: account.name)
+        _accountType = State(initialValue: account.accountType)
         _amounts = State(initialValue: account.quickAddAmounts)
     }
 
@@ -313,6 +424,19 @@ private struct EditAccountSheet: View {
             Form {
                 Section("Name") {
                     TextField("Account Name", text: $name)
+                }
+
+                Section("Account Type") {
+                    Picker("Type", selection: $accountType) {
+                        ForEach(AccountType.allCases, id: \.self) { type in
+                            Label(type.label, systemImage: type.icon).tag(type)
+                        }
+                    }
+                    if let note = accountType.cashNote {
+                        Text(note)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
                 }
 
                 Section {
@@ -354,6 +478,7 @@ private struct EditAccountSheet: View {
                         if !trimmed.isEmpty {
                             store.renameAccount(id: account.id, name: trimmed)
                         }
+                        store.setAccountType(id: account.id, accountType: accountType)
                         store.setQuickAddAmounts(id: account.id, amounts: amounts)
                         dismiss()
                     }

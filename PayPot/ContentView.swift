@@ -16,55 +16,16 @@ struct ContentView: View {
     @State private var hideTransfers = false
     @State private var selectedCategory: String? = nil
     @State private var showCategoryPicker = false
+    @State private var dateRangeFilter: DateRangeFilter = .past30Days
 
-    private var uniqueCategories: [String] {
-        let categories = Set(viewModel.transactions.map { $0.category.lowercased() })
-        return categories.sorted()
+    enum DateRangeFilter: String, CaseIterable {
+        case thisMonth = "This Month"
+        case past30Days = "Past 30 Days"
     }
-    
-    private var filteredTransactions: [Transaction] {
-        // Sort newest first
-        let sorted = viewModel.transactions.sorted { $0.created > $1.created }
 
-        // Apply category filters first
-        let categoryFiltered = sorted.filter { txn in
-            let category = txn.category.lowercased()
+    private var uniqueCategories: [String] { [] }
 
-            // Hide transfers toggle
-            if hideTransfers && category == "transfers" {
-                return false
-            }
-
-            // Specific category filter
-            if let selected = selectedCategory {
-                return category == selected.lowercased()
-            }
-
-            return true
-        }
-
-        // Apply search filtering
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return categoryFiltered }
-
-        let lcQuery = query.lowercased()
-
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-
-        return categoryFiltered.filter { txn in
-            if txn.description.lowercased().contains(lcQuery) { return true }
-
-            let absPoundsString = String(format: "%.2f", Double(abs(txn.amount)) / 100.0)
-            if absPoundsString.contains(lcQuery) { return true }
-
-            let dateString = formatter.string(from: txn.created).lowercased()
-            if dateString.contains(lcQuery) { return true }
-
-            return false
-        }
-    }
+    private var filteredTransactions: [Transaction] { [] }
 
     var body: some View {
         NavigationStack {
@@ -109,6 +70,15 @@ struct ContentView: View {
                     Menu {
                         // Hide Transfers Toggle
                         Toggle("Hide Transfers", isOn: $hideTransfers)
+
+                        Divider()
+
+                        // Date Range Picker
+                        Picker("Date Range", selection: $dateRangeFilter) {
+                            ForEach(DateRangeFilter.allCases, id: \.self) { range in
+                                Text(range.rawValue).tag(range)
+                            }
+                        }
 
                         Divider()
 

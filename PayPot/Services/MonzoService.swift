@@ -50,16 +50,29 @@ struct MonzoService {
     }
 
     func getTransactions(accountId: String, since: Date) async throws -> [Transaction] {
-        var components = URLComponents(url: baseURL.appendingPathComponent("transactions"), resolvingAgainstBaseURL: false)!
-        components.queryItems = [
-            URLQueryItem(name: "account_id", value: accountId),
-            URLQueryItem(name: "since", value: Self.iso8601Formatter.string(from: since)),
-            URLQueryItem(name: "expand[]", value: "merchant"),
-        ]
-        guard let url = components.url else { throw MonzoError.invalidURL }
-        let request = authorisedRequest(url: url)
-        let response: TransactionsResponse = try await perform(request)
-        return response.transactions
+        var all: [Transaction] = []
+        // `since` accepts either an ISO 8601 date or a transaction ID.
+        // We start with the date, then paginate by passing the last transaction ID.
+        var sinceParam = Self.iso8601Formatter.string(from: since)
+
+        while true {
+            var components = URLComponents(url: baseURL.appendingPathComponent("transactions"), resolvingAgainstBaseURL: false)!
+            components.queryItems = [
+                URLQueryItem(name: "account_id", value: accountId),
+                URLQueryItem(name: "since", value: sinceParam),
+                URLQueryItem(name: "expand[]", value: "merchant"),
+            ]
+            guard let url = components.url else { throw MonzoError.invalidURL }
+            let request = authorisedRequest(url: url)
+            let response: TransactionsResponse = try await perform(request)
+            let batch = response.transactions
+            all.append(contentsOf: batch)
+            // Monzo returns at most 100 per page. Fewer means we're on the last page.
+            guard batch.count == 100, let lastId = batch.last?.id else { break }
+            sinceParam = lastId
+        }
+
+        return all
     }
 
     /// Withdraws `amount` pence from `potId` back into `accountId`.

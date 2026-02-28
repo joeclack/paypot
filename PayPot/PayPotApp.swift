@@ -2,7 +2,7 @@ import SwiftUI
 import LocalAuthentication
 
 enum Tabs: Int {
-    case monzo = 0, budget, settings, savings
+    case budget = 0, savings, settings
 }
 
 enum LockDelay: String, CaseIterable {
@@ -94,11 +94,6 @@ struct RootView: View {
             TabView(selection: $activeTab) {
                 Tab("Budget", systemImage: "chart.pie.fill", value: .budget) {
                     BudgetView(viewModel: dashboardViewModel, prefsStore: prefsStore)
-                }
-                Tab("Transactions", systemImage: "list.bullet.rectangle", value: .monzo) {
-                    ContentView(authManager: authManager, viewModel: dashboardViewModel) {
-                        activeTab = .settings
-                    }
                 }
                 Tab("Savings", systemImage: "chart.line.uptrend.xyaxis.circle", value: .savings) {
                     SavingsView(store: savingsStore)

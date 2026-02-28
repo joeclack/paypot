@@ -12,6 +12,10 @@ final class SavingsStore {
 
     var totalBalancePence: Int { accounts.map(\.balancePence).reduce(0, +) }
 
+    var totalCashPence: Int {
+        accounts.reduce(0) { $0 + Int(Double($1.balancePence) * $1.accountType.cashFraction) }
+    }
+
     init() {
         if let data = UserDefaults.standard.data(forKey: Keys.accounts),
            let stored = try? JSONDecoder().decode([SavingsAccount].self, from: data) {
@@ -21,13 +25,14 @@ final class SavingsStore {
         }
     }
 
-    func addAccount(name: String, initialBalancePence: Int) {
+    func addAccount(name: String, initialBalancePence: Int, accountType: AccountType = .generalSavings) {
         let account = SavingsAccount(
             id: UUID().uuidString,
             name: name,
             balancePence: initialBalancePence,
             lastUpdated: Date(),
-            quickAddAmounts: []
+            quickAddAmounts: [],
+            accountType: accountType
         )
         accounts.append(account)
         save()
@@ -43,6 +48,12 @@ final class SavingsStore {
     func renameAccount(id: String, name: String) {
         guard let idx = accounts.firstIndex(where: { $0.id == id }) else { return }
         accounts[idx].name = name
+        save()
+    }
+
+    func setAccountType(id: String, accountType: AccountType) {
+        guard let idx = accounts.firstIndex(where: { $0.id == id }) else { return }
+        accounts[idx].accountType = accountType
         save()
     }
 

@@ -15,6 +15,7 @@ struct PaydayEditSheet: View {
         }
     }
 
+    @State private var enabled: Bool
     @State private var scheduleType: ScheduleType
     @State private var fixedDay: Int
     @State private var fixedDayText: String
@@ -22,6 +23,7 @@ struct PaydayEditSheet: View {
 
     init(prefsStore: PotPreferencesStore) {
         self.prefsStore = prefsStore
+        _enabled = State(initialValue: prefsStore.paydaySchedule != nil)
         switch prefsStore.paydaySchedule {
         case .fixedDay(let d):
             _scheduleType = State(initialValue: .fixedDay)
@@ -43,8 +45,21 @@ struct PaydayEditSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
+        Form {
+            Section {
+                Toggle("Enable Payday Schedule", isOn: $enabled)
+                    .onChange(of: enabled) { _, on in
+                        if on {
+                            prefsStore.setPaydaySchedule(currentSchedule)
+                        } else {
+                            prefsStore.setPaydaySchedule(nil)
+                            prefsStore.setBacsEarlyPayment(false)
+                            bacsEarly = false
+                        }
+                    }
+            }
+
+            if enabled {
                 Section("Pay Schedule") {
                     Picker("Type", selection: $scheduleType) {
                         ForEach([ScheduleType.fixedDay, .lastWorkingDay], id: \.self) { type in
@@ -53,6 +68,9 @@ struct PaydayEditSheet: View {
                     }
                     .pickerStyle(.inline)
                     .labelsHidden()
+                    .onChange(of: scheduleType) { _, _ in
+                        prefsStore.setPaydaySchedule(currentSchedule)
+                    }
 
                     if scheduleType == .fixedDay {
                         HStack {
@@ -72,6 +90,7 @@ struct PaydayEditSheet: View {
                                         let clamped = min(max(1, val), 31)
                                         fixedDay = clamped
                                         if val != clamped { fixedDayText = String(clamped) }
+                                        prefsStore.setPaydaySchedule(.fixedDay(clamped))
                                     } else {
                                         fixedDayText = digits
                                     }
@@ -82,6 +101,9 @@ struct PaydayEditSheet: View {
 
                 Section {
                     Toggle("BACS early payment", isOn: $bacsEarly)
+                        .onChange(of: bacsEarly) { _, new in
+                            prefsStore.setBacsEarlyPayment(new)
+                        }
                 } footer: {
                     Text("Monzo and some banks release BACS payroll a working day before the official payment date.")
                 }
@@ -99,33 +121,10 @@ struct PaydayEditSheet: View {
                         }
                     }
                 }
-
-                if prefsStore.paydaySchedule != nil {
-                    Section {
-                        Button("Remove Pay Schedule", role: .destructive) {
-                            prefsStore.setPaydaySchedule(nil)
-                            prefsStore.setBacsEarlyPayment(false)
-                            dismiss()
-                        }
-                    }
-                }
-            }
-            .navigationTitle("Payday Schedule")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Save") {
-                        prefsStore.setPaydaySchedule(currentSchedule)
-                        prefsStore.setBacsEarlyPayment(bacsEarly)
-                        dismiss()
-                    }
-                    .fontWeight(.semibold)
-                }
             }
         }
+        .navigationTitle("Payday Schedule")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
